@@ -61,6 +61,7 @@ abstract class BaseStoreImpl {
     this.logger = opts.logger
       .With()
       .Ref("url", () => this._url.toString())
+      .Str("id", "" + Math.random())
       .Str("name", name)
       .Logger();
     this.gateway = opts.gateway;
@@ -85,7 +86,12 @@ abstract class BaseStoreImpl {
   readonly ready?: () => Promise<void>;
 
   async keyedCrypto(): Promise<KeyedCrypto> {
-    return keyedCryptoFactory(this._url, await this.keybag(), this.logger);
+    this.logger.Debug().Msg("keyedCrypto");
+    const kb = await this.keybag();
+    this.logger.Debug().Msg("keyedCrypto-keybag");
+    const kcf = await keyedCryptoFactory(this._url, kb, this.logger);
+    this.logger.Debug().Msg("keyedCrypto-kcf");
+    return kcf;
   }
 
   async start(): Promise<Result<URI>> {
@@ -97,34 +103,54 @@ abstract class BaseStoreImpl {
       return res as Result<URI>;
     }
     this._url = res.Ok();
+    this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-post-0");
     // add storekey to url
     const storeKey = this._url.getParam("storekey");
+    this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-post-1");
     if (storeKey !== "insecure") {
+      this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-post-2");
       const idx = this._url.getParam("index");
       const storeKeyName = [this.name];
       if (idx) {
         storeKeyName.push(idx);
       }
       storeKeyName.push(this.storeType);
+      this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-sk-0");
       let keyName = `@${storeKeyName.join(":")}@`;
       let failIfNotFound = true;
       const kb = await this.keybag();
-      if (storeKey && storeKey.startsWith("@") && storeKey.endsWith("@")) {
-        keyName = storeKey;
-      } else if (storeKey) {
-        const ret = await kb.getNamedKey(keyName, true);
-        if (ret.isErr()) {
-          await kb.setNamedKey(keyName, storeKey);
+      this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-sk-1");
+      try {
+        if (storeKey && storeKey.startsWith("@") && storeKey.endsWith("@")) {
+          keyName = storeKey;
+          // create if key-ref is given
+          this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-sk-1.0a");
+          await kb.getNamedKey(keyName);
+          this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-sk-1.1");
+        } else if (storeKey) {
+          this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-sk-1.0b");
+          const ret = await kb.getNamedKey(keyName, true);
+          this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-sk-1.2");
+          if (ret.isErr()) {
+            await kb.setNamedKey(keyName, storeKey);
+            this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-sk-1.3");
+          }
+        } else {
+          failIfNotFound = false; // create key if not found
         }
-      } else {
-        failIfNotFound = false; // create key if not found
+      } catch (e) {
+        this.logger.Error().Err(e).Msg("error getting key").AsError();
+        return Result.Err(e as Error);
       }
+      this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-sk-2");
       const ret = await kb.getNamedKey(keyName, failIfNotFound);
+      this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-sk-3");
       if (ret.isErr()) {
         return ret as unknown as Result<URI>;
       }
       this._url = this._url.build().setParam("storekey", keyName).URI();
     }
+    this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-0");
     const version = guardVersion(this._url);
     if (version.isErr()) {
       this.logger.Error().Result("version", version).Msg("guardVersion");
@@ -133,12 +159,14 @@ abstract class BaseStoreImpl {
     }
     if (this.ready) {
       const fn = this.ready.bind(this);
+      this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-1");
       const ready = await exception2Result(fn);
       if (ready.isErr()) {
         await this.close();
         return ready as Result<URI>;
       }
     }
+    this.logger.Debug().Str("storeType", this.storeType).Msg("starting-gateway-2");
     this._onStarted.forEach((fn) => fn());
     this.logger.Debug().Msg("started");
     return version;
@@ -202,6 +230,7 @@ export class MetaStoreImpl extends BaseStoreImpl implements MetaStore {
   dbMetasForByteHeads(byteHeads: Uint8Array[]) {
     return byteHeads.map((bytes) => {
       const txt = this.textDecoder.decode(bytes);
+      this.logger.Debug().Str("txt", txt).Msg("dbMetasForByteHeads");
       return this.parseHeader(txt);
     });
   }

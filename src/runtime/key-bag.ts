@@ -37,11 +37,17 @@ export class KeyBag {
     );
   }
 
-  async toKeyWithFingerPrint(key: string): Promise<Result<KeyWithFingerPrint>> {
-    const material = base58btc.decode(key); //
+  async toKeyWithFingerPrint(keyStr: string): Promise<Result<KeyWithFingerPrint>> {
+    this.logger.Debug().Str("key", keyStr).Msg("toKeyWithFingerPrint-1");
+    const material = base58btc.decode(keyStr); //
+    this.logger.Debug().Str("key", keyStr).Msg("toKeyWithFingerPrint-2");
+    const key = await this.subtleKey(keyStr);
+    this.logger.Debug().Str("key", keyStr).Msg("toKeyWithFingerPrint-3");
+    const fpr = await this.rt.crypto.digestSHA256(material);
+    this.logger.Debug().Str("key", keyStr).Msg("toKeyWithFingerPrint-4");
     return Result.Ok({
-      key: await this.subtleKey(key),
-      fingerPrint: base58btc.encode(new Uint8Array(await this.rt.crypto.digestSHA256(material))),
+      key,
+      fingerPrint: base58btc.encode(new Uint8Array(fpr)),
     });
   }
 
@@ -63,19 +69,27 @@ export class KeyBag {
   }
 
   async getNamedKey(name: string, failIfNotFound = false): Promise<Result<KeyWithFingerPrint>> {
+    const id = Math.random().toString();
     return this._seq.add(async () => {
+      this.logger.Debug().Str("id", id).Str("name", name).Msg("getNamedKey-0");
       const bag = await this.rt.getBag();
+      this.logger.Debug().Str("id", id).Str("name", name).Msg("getNamedKey-1");
       const named = await bag.get(name);
+      this.logger.Debug().Str("id", id).Str("name", name).Msg("getNamedKey-2");
       if (named) {
-        this.logger.Debug().Str("name", name).Msg("found getNamedKey");
-        return await this.toKeyWithFingerPrint(named.key);
+        this.logger.Debug().Str("id", id).Str("name", name).Msg("found getNamedKey");
+        const fpr = await this.toKeyWithFingerPrint(named.key);
+        this.logger.Debug().Str("id", id).Str("name", name).Msg("fingerPrint getNamedKey");
+        return fpr;
       }
       if (failIfNotFound) {
-        this.logger.Debug().Str("name", name).Msg("failIfNotFound getNamedKey");
+        this.logger.Debug().Str("id", id).Str("name", name).Msg("failIfNotFound getNamedKey");
         return Result.Err(new Error(`Key not found: ${name}`));
       }
-      this.logger.Debug().Str("name", name).Msg("createKey getNamedKey");
-      return this._setNamedKey(name, base58btc.encode(this.rt.crypto.randomBytes(this.rt.keyLength)));
+      this.logger.Debug().Str("id", id).Str("name", name).Msg("createKey getNamedKey-pre");
+      const ret = this._setNamedKey(name, base58btc.encode(this.rt.crypto.randomBytes(this.rt.keyLength)));
+      this.logger.Debug().Str("id", id).Str("name", name).Msg("createKey getNamedKey-post");
+      return ret;
     });
   }
 }

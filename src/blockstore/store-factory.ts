@@ -55,14 +55,18 @@ interface GatewayReady {
 }
 const onceGateway = new KeyedResolvOnce<GatewayReady>();
 export async function getGatewayFromURL(url: URI, logger: Logger): Promise<GatewayReady | undefined> {
+  logger.Debug().Url(url).Msg("getGatewayFromURL");
   return onceGateway.get(url.toString()).once(async () => {
     const item = storeFactory.get(url.protocol);
     if (item) {
+      logger.Debug().Str("protocol", url.protocol).Msg("getGatewayFromURL-1");
       const ret = {
         gateway: await item.gateway(logger),
         test: await item.test(logger),
       };
+      logger.Debug().Str("protocol", url.protocol).Msg("getGatewayFromURL-2");
       const res = await ret.gateway.start(url);
+      logger.Debug().Str("protocol", url.protocol).Msg("getGatewayFromURL-3");
       if (res.isErr()) {
         logger.Error().Result("start", res).Msg("start failed");
         return undefined;
@@ -177,6 +181,7 @@ async function metaStoreFactory(loader: Loadable): Promise<MetaStoreImpl> {
   // return onceMetaStoreFactory.get(url.toString()).once(async () => {
   logger.Debug().Str("protocol", url.protocol).Msg("pre-protocol switch");
   const gateway = await getGatewayFromURL(url, logger);
+  logger.Debug().Str("protocol", url.protocol).Bool("gateway", gateway).Msg("post-protocol switch");
   if (!gateway) {
     throw logger.Error().Url(url).Msg("gateway not found").AsError();
   }
@@ -189,6 +194,7 @@ async function metaStoreFactory(loader: Loadable): Promise<MetaStoreImpl> {
         ...loader.ebOpts.keyBag,
       }),
   });
+  logger.Debug().Str("protocol", url.protocol).Msg("MetaStoreImpl-post");
   // const ret = await store.start();
   // if (ret.isErr()) {
   //   throw logger.Error().Result("start", ret).Msg("start failed").AsError();
@@ -248,7 +254,9 @@ export async function testStoreFactory(url: URI, ilogger?: Logger): Promise<Test
 }
 
 export async function ensureStart<T>(store: T & { start: () => Promise<Result<URI>> }, logger: Logger): Promise<T> {
+  logger.Debug().Any("x", store).Msg("ensureStart-0");
   const ret = await store.start();
+  logger.Debug().Msg("ensureStart-1");
   if (ret.isErr()) {
     throw logger.Error().Result("start", ret).Msg("start failed").AsError();
   }
@@ -256,10 +264,12 @@ export async function ensureStart<T>(store: T & { start: () => Promise<Result<UR
   return store;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function toStoreRuntime(opts: StoreOpts, ilogger: Logger): StoreRuntime {
-  const logger = ensureLogger(ilogger, "toStoreRuntime", {});
+  // const logger = ensureLogger(ilogger, "toStoreRuntime", {});
   return {
     makeMetaStore: async (loader: Loadable) => {
+      const logger = ensureLogger(loader.logger, "makeMetaStore");
       logger
         .Debug()
         .Str("fromOpts", "" + !!loader.ebOpts.store.makeMetaStore)
@@ -267,6 +277,7 @@ export function toStoreRuntime(opts: StoreOpts, ilogger: Logger): StoreRuntime {
       return ensureStart(await (loader.ebOpts.store.makeMetaStore || metaStoreFactory)(loader), logger);
     },
     makeDataStore: async (loader: Loadable) => {
+      const logger = ensureLogger(loader.logger, "makeDataStore");
       logger
         .Debug()
         .Str("fromOpts", "" + !!loader.ebOpts.store.makeDataStore)
@@ -274,6 +285,7 @@ export function toStoreRuntime(opts: StoreOpts, ilogger: Logger): StoreRuntime {
       return ensureStart(await (loader.ebOpts.store.makeDataStore || dataStoreFactory)(loader), logger);
     },
     makeWALStore: async (loader: Loadable) => {
+      const logger = ensureLogger(loader.logger, "makeWALStore");
       logger
         .Debug()
         .Str("fromOpts", "" + !!loader.ebOpts.store.makeWALStore)

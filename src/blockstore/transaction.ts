@@ -69,15 +69,13 @@ export function defaultedBlockstoreRuntime(
   };
 }
 
-const blockstoreFactory = function (opts: BlockstoreOpts): BaseBlockstore | EncryptedBlockstore {
-  if (opts.name) {
+export function blockstoreFactory(opts: BlockstoreOpts): BaseBlockstore | EncryptedBlockstore {
+  if (opts.name || opts.store?.stores?.useEncryptedBlockstore) {
     return new EncryptedBlockstore(opts);
   } else {
     return new BaseBlockstore(opts);
   }
-};
-
-export { blockstoreFactory };
+}
 
 export class BaseBlockstore implements BlockFetcher {
   readonly transactions = new Set<CarTransaction>();
@@ -167,10 +165,10 @@ export class EncryptedBlockstore extends BaseBlockstore {
     super(ebOpts);
     this.logger = ensureLogger(ebOpts, "EncryptedBlockstore");
     const { name } = ebOpts;
-    if (!name) {
+    if (!(name || ebOpts.store?.stores?.useEncryptedBlockstore)) {
       throw this.logger.Error().Msg("name required").AsError();
     }
-    this.name = name;
+    this.name = name || "";
     this.loader = new Loader(this.name, ebOpts);
   }
 
@@ -187,8 +185,11 @@ export class EncryptedBlockstore extends BaseBlockstore {
     fn: (t: CarTransaction) => Promise<M>,
     opts = { noLoader: false },
   ): Promise<TransactionWrapper<M>> {
+    this.logger.Debug().Msg("transaction-0");
     const { t, meta: done } = await super.transaction<M>(fn);
+    this.logger.Debug().Msg("transaction-1");
     const cars = await this.loader.commit<M>(t, done, opts);
+    this.logger.Debug().Msg("transaction-2");
     if (this.ebOpts.autoCompact && this.loader.carLog.length > this.ebOpts.autoCompact) {
       setTimeout(() => void this.compact(), 10);
     }

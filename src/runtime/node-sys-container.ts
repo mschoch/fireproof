@@ -26,7 +26,11 @@ export async function createNodeSysContainer(): Promise<NodeMap> {
     stat: fs.stat as NodeMap["stat"],
     readdir: fs.readdir as NodeMap["readdir"],
     readfile: async (path: PathLike, options?: ObjectEncodingOptions): Promise<Uint8Array> => {
-      const rs = await fs.readFile(path, options);
+      // console.log("readfile-0", path, options);
+      const prs = fs.readFile(path, options);
+      // console.log("readfile-1", path, options, prs);
+      const rs = await prs;
+      // console.log("readfile-2", path, rs);
       return toArrayBuffer(rs);
     },
     writefile: fs.writeFile as NodeMap["writefile"],
