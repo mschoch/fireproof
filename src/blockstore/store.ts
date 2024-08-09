@@ -211,6 +211,7 @@ export class MetaStoreImpl extends BaseStoreImpl implements MetaStore {
   async handleSubscribers(dbMetas: DbMeta[], branch: string) {
     try {
       const subscribers = this.subscribers.get(branch) || [];
+      this.logger.Debug().Int("subslen", subscribers.length).Msg("marty-before-handle-subscriber");
       await Promise.all(subscribers.map((subscriber) => subscriber(dbMetas)));
     } catch (e) {
       this.logger.Error().Err(e).Msg("handleSubscribers").AsError();
@@ -224,9 +225,12 @@ export class MetaStoreImpl extends BaseStoreImpl implements MetaStore {
     } catch (e) {
       throw this.logger.Error().Err(e).Msg("parseHeader").AsError();
     }
+    this.logger.Debug().Msg("marty-handle-byte-heads-before-subs");
     await this.handleSubscribers(dbMetas, branch);
+    this.logger.Debug().Msg("marty-handle-byte-heads-after-subs");
     return dbMetas;
   }
+
   dbMetasForByteHeads(byteHeads: Uint8Array[]) {
     return byteHeads.map((bytes) => {
       const txt = this.textDecoder.decode(bytes);
@@ -237,18 +241,24 @@ export class MetaStoreImpl extends BaseStoreImpl implements MetaStore {
 
   async load(branch?: string): Promise<DbMeta[] | Falsy> {
     branch = branch || "main";
-    this.logger.Debug().Str("branch", branch).Msg("loading");
+    this.logger.Debug().Str("branch", branch).Msg("marty-loading");
     const url = await this.gateway.buildUrl(this.url(), branch);
     if (url.isErr()) {
       throw this.logger.Error().Result("buidUrl", url).Str("branch", branch).Msg("got error from gateway.buildUrl").AsError();
     }
+    this.logger.Debug().Str("url", url.Ok().toString()).Msg("marty-load-before");
     const bytes = await this.gateway.get(url.Ok());
+    this.logger.Debug().Msg("marty-load-after");
     if (bytes.isErr()) {
+      this.logger.Debug().Msg("marty-load-bytesiserr");
       if (isNotFoundError(bytes)) {
+        this.logger.Debug().Msg("marty-load-notfound");
         return undefined;
       }
+      this.logger.Debug().Msg("marty-load-throw");
       throw this.logger.Error().Url(url.Ok()).Result("bytes:", bytes).Msg("gateway get").AsError();
     }
+    this.logger.Debug().Msg("marty-load-beforereturn");
     return this.handleByteHeads([bytes.Ok()], branch);
   }
 
@@ -403,6 +413,7 @@ export class WALStoreImpl extends BaseStoreImpl implements WALStore {
   }
 
   async _doProcess() {
+    this.logger.Debug().Msg("do-process-0");
     if (!this.loader.remoteCarStore) return;
     const rmlp = (async () => {
       const operations = [...this.walState.operations];
@@ -412,6 +423,8 @@ export class WALStoreImpl extends BaseStoreImpl implements WALStore {
       const limit = pLimit(5);
 
       if (operations.length + fileOperations.length + noLoaderOps.length === 0) return;
+
+      this.logger.Debug().Msg("rmlp-1");
 
       for (const dbMeta of noLoaderOps) {
         const uploadP = limit(async () => {
@@ -429,6 +442,8 @@ export class WALStoreImpl extends BaseStoreImpl implements WALStore {
         uploads.push(uploadP);
       }
 
+      this.logger.Debug().Msg("rmlp-2");
+
       for (const dbMeta of operations) {
         const uploadP = limit(async () => {
           for (const cid of dbMeta.cars) {
@@ -445,6 +460,8 @@ export class WALStoreImpl extends BaseStoreImpl implements WALStore {
         uploads.push(uploadP);
       }
 
+      this.logger.Debug().Msg("rmlp-3");
+
       if (fileOperations.length) {
         const dbLoader = this.loader;
         for (const { cid: fileCid, public: publicFile } of fileOperations) {
@@ -456,6 +473,8 @@ export class WALStoreImpl extends BaseStoreImpl implements WALStore {
           uploads.push(uploadP);
         }
       }
+
+      this.logger.Debug().Msg("rmlp-4");
 
       try {
         const res = await Promise.allSettled(uploads);
@@ -474,8 +493,11 @@ export class WALStoreImpl extends BaseStoreImpl implements WALStore {
       } finally {
         await this.save(this.walState);
       }
+
+      this.logger.Debug().Msg("rmlp-5");
     })();
     // this.loader.remoteMetaLoading = rmlp;
+    this.logger.Debug().Msg("do-process-2");
     await rmlp;
   }
 

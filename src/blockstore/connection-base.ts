@@ -71,15 +71,18 @@ export abstract class ConnectionBase implements Connection {
       keybag: () => getKeyBag(this.loader?.ebOpts.keyBag),
     });
     remote.onLoad("main", async (metas) => {
+      this.logger.Debug().Msg("marty-before-if");
       if (metas) {
-        this.logger.Debug().Any("metas", metas).Bool("loader", this.loader).Msg("connectMeta_X: handleDbMetasFromStore pre");
+        this.logger.Debug().Any("metas", metas).Bool("loader", this.loader).Msg("marty-connectMeta_X: handleDbMetasFromStore pre");
         await throwFalsy(this.loader).handleDbMetasFromStore(metas);
-        this.logger.Debug().Any("metas", metas).Msg("connectMeta_X: handleDbMetasFromStore post");
+        this.logger.Debug().Any("metas", metas).Msg("marty-connectMeta_X: handleDbMetasFromStore post");
       }
     });
     this.loader.remoteMetaStore = remote;
     this.loaded = this.loader.ready().then(async () => {
+      this.logger.Debug().Msg("marty-remote-load-abc");
       remote.load("main").then(async () => {
+        this.logger.Debug().Msg("marty-remote-load-xxx");
         (await throwFalsy(this.loader).WALStore()).process();
       });
     });

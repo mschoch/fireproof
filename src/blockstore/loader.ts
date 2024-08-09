@@ -143,50 +143,50 @@ export class Loader implements Loadable {
     const logger = ensureLogger(this.logger, "handleDbMetasFromStore", {
       id: Math.random().toString(36).substring(7),
     });
-    logger.Debug().Any("metas", metas).Msg("handleDbMetasFromStore");
+    logger.Debug().Any("metas", metas).Msg("marty-handleDbMetasFromStore");
     for (const meta of metas) {
-      logger.Debug().Any("meta", meta).Msg("handleDbMetasFromStore-1");
+      logger.Debug().Any("meta", meta).Msg("marty-handleDbMetasFromStore-1");
       // await this.writeLimit(async () => {
       // logger.Debug().Any("meta", meta).Msg("handleDbMetasFromStore-2");
       await this.mergeDbMetaIntoClock(meta, logger);
       // logger.Debug().Any("meta", meta).Msg("handleDbMetasFromStore-3");
       // });
-      logger.Debug().Any("meta", meta).Msg("handleDbMetasFromStore-4");
+      logger.Debug().Any("meta", meta).Msg("marty-handleDbMetasFromStore-4");
     }
   }
 
   async mergeDbMetaIntoClock(meta: DbMeta, logger: Logger): Promise<void> {
-    logger.Debug().Any("meta", meta).Msg("mergeDbMetaIntoClock-1");
+    logger.Debug().Any("meta", meta).Msg("marty-mergeDbMetaIntoClock-1");
     if (this.isCompacting) {
       throw logger.Error().Msg("cannot merge while compacting").AsError();
     }
 
-    logger.Debug().Any("meta", meta).Msg("mergeDbMetaIntoClock-2");
+    logger.Debug().Any("meta", meta).Msg("marty-mergeDbMetaIntoClock-2");
     if (this.seenMeta.has(meta.cars.toString())) return;
     this.seenMeta.add(meta.cars.toString());
-    logger.Debug().Any("meta", meta).Msg("mergeDbMetaIntoClock-3");
+    logger.Debug().Any("meta", meta).Msg("marty-mergeDbMetaIntoClock-3");
 
     // if (meta.key) {
     //   await this.setKey(meta.key);
     // }
     if (carLogIncludesGroup(this.carLog, meta.cars)) {
-      logger.Debug().Any("meta", meta).Msg("mergeDbMetaIntoClock-3.1");
+      logger.Debug().Any("meta", meta).Msg("marty-mergeDbMetaIntoClock-3.1");
       return;
     }
-    logger.Debug().Any("meta", meta).Msg("mergeDbMetaIntoClock-4");
+    logger.Debug().Any("meta", meta).Msg("marty-mergeDbMetaIntoClock-4");
     const carHeader = await this.loadCarHeaderFromMeta<TransactionMeta>(meta);
-    logger.Debug().Any("meta", meta).Msg("mergeDbMetaIntoClock-5");
+    logger.Debug().Any("meta", meta).Msg("marty-mergeDbMetaIntoClock-5");
     // fetch other cars down the compact log?
     // todo we should use a CID set for the compacted cids (how to expire?)
     // console.log('merge carHeader', carHeader.head.length, carHeader.head.toString(), meta.car.toString())
     carHeader.compact.map((c) => c.toString()).forEach(this.seenCompacted.add, this.seenCompacted);
-    logger.Debug().Any("meta", meta).Msg("mergeDbMetaIntoClock-6");
+    logger.Debug().Any("meta", meta).Msg("marty-mergeDbMetaIntoClock-6");
     await this.getMoreReaders(carHeader.cars.flat(), logger);
-    logger.Debug().Any("meta", meta).Msg("mergeDbMetaIntoClock-7");
+    logger.Debug().Any("meta", meta).Msg("marty-mergeDbMetaIntoClock-7");
     this.carLog = [...uniqueCids([meta.cars, ...this.carLog, ...carHeader.cars], this.seenCompacted)];
-    logger.Debug().Any("meta", meta).Msg("mergeDbMetaIntoClock-8");
+    logger.Debug().Any("meta", meta).Msg("marty-mergeDbMetaIntoClock-8");
     await this.ebOpts.applyMeta?.(carHeader.meta);
-    logger.Debug().Any("meta", meta).Msg("mergeDbMetaIntoClock-9");
+    logger.Debug().Any("meta", meta).Msg("marty-mergeDbMetaIntoClock-9");
   }
 
   // protected async ingestKeyFromMeta(meta: DbMeta): Promise<void> {
@@ -446,35 +446,35 @@ export class Loader implements Loadable {
         .Str("cid", cidsString)
         .Msg("loading car");
       loadedCar = await local.load(cid);
-      this.logger.Debug().Bool("loadedCar", loadedCar).Msg("loaded");
+      this.logger.Debug().Bool("loadedCar", loadedCar).Msg("marty-loaded");
     } catch (e) {
       if (remote) {
         const remoteCar = await remote.load(cid);
         if (remoteCar) {
           // todo test for this
-          this.logger.Debug().Ref("cid", remoteCar.cid).Msg("saving remote car locally");
+          this.logger.Debug().Ref("cid", remoteCar.cid).Msg("marty-saving remote car locally");
           await local.save(remoteCar);
           loadedCar = remoteCar;
           activeStore = remote;
         }
       } else {
-        this.logger.Error().Str("cid", cidsString).Err(e).Msg("loading car");
+        this.logger.Error().Str("cid", cidsString).Err(e).Msg("marty-loading car");
       }
     }
     if (!loadedCar) {
-      throw this.logger.Error().Url(local.url()).Str("cid", cidsString).Msg("missing car files").AsError();
+      throw this.logger.Error().Url(local.url()).Str("cid", cidsString).Msg("marty-missing car files").AsError();
     }
-    this.logger.Debug().Str("cid", cidsString).Len(loadedCar.bytes).Msg("loading car-1");
+    this.logger.Debug().Str("cid", cidsString).Len(loadedCar.bytes).Msg("marty-loading car-1");
     //This needs a fix as well as the fromBytes function expects a Uint8Array
     //Either we can merge the bytes or return an array of rawReaders
     const codec = (await activeStore.keyedCrypto()).codec();
-    this.logger.Debug().Str("cid", cidsString).Msg("loading car-1.5");
+    this.logger.Debug().Str("cid", cidsString).Int("bytelsen", loadedCar.bytes.length).Msg("marty-loading car-1.5");
     const bytes = await decode({ bytes: loadedCar.bytes, hasher, codec }); // as Uint8Array,
-    this.logger.Debug().Str("cid", cidsString).Msg("loading car-2");
+    this.logger.Debug().Str("cid", cidsString).Msg("marty-loading car-2");
     const rawReader = await CarReader.fromBytes(bytes.value);
-    this.logger.Debug().Str("cid", cidsString).Msg("loading car-3");
+    this.logger.Debug().Str("cid", cidsString).Msg("marty-loading car-3");
     const readerP = Promise.resolve(rawReader);
-    this.logger.Debug().Str("cid", cidsString).Msg("loading car-4");
+    this.logger.Debug().Str("cid", cidsString).Msg("marty-loading car-4");
     // const kc = await activeStore.keyedCrypto()
     // const readerP = !kc.isEncrypting ? Promise.resolve(rawReader) : this.ensureDecryptedReader(activeStore, rawReader);
 
@@ -496,11 +496,17 @@ export class Loader implements Loadable {
   protected async storesLoadCar(cid: AnyLink, local: DataStore, remote?: DataStore): Promise<CarReader> {
     const cidsString = cid.toString();
     let dacr = this.carReaders.get(cidsString);
-    this.logger.Debug().Str("cid", cidsString).Bool("dacr", dacr).Msg("storesLoadCar");
+    this.logger.Debug().Str("cid", cidsString).Bool("dacr", dacr).Msg("marty-storesLoadCar");
     if (!dacr) {
+      this.logger.Debug().Str("cid", cidsString).Msg("marty-storesLoadCar-2");
       dacr = this.makeDecoderAndCarReader(cid, local, remote);
+      this.logger.Debug().Str("cid", cidsString).Msg("marty-storesLoadCar-3");
       this.carReaders.set(cidsString, dacr);
     }
+    dacr.then(() => {
+      this.logger.Debug().Str("cid", cidsString).Msg("marty-storesLoadCar-4");
+    })
+
     return dacr;
   }
 
@@ -545,22 +551,22 @@ export class Loader implements Loadable {
   // }
 
   protected async getMoreReaders(cids: AnyLink[], logger: Logger) {
-    logger.Debug().Any("cids", cids).Msg("getMoreReaders-0");
+    logger.Debug().Any("cids", cids).Msg("marty-getMoreReaders-0");
     // const limit = pLimit(5);
-    logger.Debug().Any("cids", cids).Msg("getMoreReaders-1");
+    logger.Debug().Any("cids", cids).Msg("marty-getMoreReaders-1");
     const missing = cids.filter((cid) => !this.carReaders.has(cid.toString()));
-    logger.Debug().Any("cids", cids).Msg("getMoreReaders-2");
+    logger.Debug().Any("cids", cids).Msg("marty-getMoreReaders-2");
     await Promise.all(
       missing.map((cid, idx) => {
-        logger.Debug().Any("cid", cid).Uint64("idx", idx).Msg("getMoreReaders-map");
+        logger.Debug().Any("cid", cid).Uint64("idx", idx).Msg("marty-getMoreReaders-map");
         // return limit(async () => {
-        logger.Debug().Any("cid", cid).Uint64("idx", idx).Msg("getMoreReaders-loadCar-pre");
+        logger.Debug().Any("cid", cid).Uint64("idx", idx).Msg("marty-getMoreReaders-loadCar-pre");
         const ret = this.loadCar(cid);
-        logger.Debug().Any("cid", cid).Uint64("idx", idx).Msg("getMoreReaders-loadCar-post");
+        logger.Debug().Any("cid", cid).Uint64("idx", idx).Msg("marty-getMoreReaders-loadCar-post");
         return ret;
         // })
       }),
     );
-    logger.Debug().Any("cids", cids).Msg("getMoreReaders-3");
+    logger.Debug().Any("cids", cids).Msg("marty-getMoreReaders-3");
   }
 }
